@@ -62,7 +62,7 @@ Include **luasm** in your project like:
 local luasm = require('luasm')
 ```
 
-Initialize a finite state machine by passing a table to `luasm.make()`. That table only requires one entry; `edges`, a table of directed edges where each edges is defined by a `from` state and a `to` state. Optional keys include`initial` to set the starting state of the machine, and a table for each state with a list of callbacks. Valid callbacks are `onexit` and `onenter` and have a signature of `function(self, ...)`
+Initialize a finite state machine by passing a table to `luasm.make()`. That table only requires one entry; `edges`, a table of directed edges where each edge is defined by a `from` state and a `to` state. Optional keys include `initial` to set the starting state of the machine, and a table for each state with a list of callbacks. Valid callbacks are `onexit` and `onenter` and have a signature of `function(self, ...)`.
 
 ```lua
 -- Make a finite state machine out of the table.
@@ -94,17 +94,17 @@ Declare callbacks after initialization of the machine with a function that has t
 game_state_machine.menu.onexit = function(self, exit_msg) print("Leaving menu: " .. exit_msg) end
 ```
 
-Transition states using the `machine:next()` method if your current state has only one edge or `machine:transition(to_state)` to define which state to transition to. Alternatively, you can use the state's function table directly using `machine.state.transition()` syntax.
+Transition states using the `machine:next(...)` method if your current state has only one edge or `machine:transition(to_state, ...)` to define which state to transition to. Alternatively, you can use the state's function table directly using `machine.state.transition(...)` syntax.
 
 ```lua
 game_state_machine:next() -- Transitions from current state to the next state if single-edged
 -- Transition to the settings state 
 -- Sends the string 'Have fun in settings!' to the onexit callback of the current state and to the onenter callback of settings
-game_state_machine:transition('settings', 'Have fun in settings!') 
+game_state_machine:transition('settings', 'Have fun in settings!')
 game_state_machine.game.transition('FTL') -- Transitions to the game state while sending the string 'FTL' to the onexit and onenter callbacks
 ```
 
-Using the `machine.state.transition()` syntax could allow the user to further qualify the execution order of the transition, but also opens up the possibility for the user to break the transition logic. Ex.
+Using the `machine.state.transition()` syntax could allow the user to further qualify the execution order of the transition by creating a wrapper around the `machine:transition(to_state, ...)`. For example, the user could declare callbacks that execute before the state's default callbacks or after the state has fully transitioned.
 
 ```lua
 local function pretransition_fn(...)
@@ -120,31 +120,28 @@ game_state_machine.game.onenter = function(self, name) print("Starting " .. name
 -- posttransition_fn executes after the state machine has completed changing states
 game_state_machine.game.transition = function(...) 
     pretransition_fn(...)
-    game_state_machine:transition('game', ...) 
+    game_state_machine:transition('game', ...)  -- Be sure to include this line or you will not trigger an actual state transition.
     posttransition_fn(...) 
 end  
 
 game_state_machine.game.transition('FTL') -- prints "Pre-transition!" \n "Starting FTL" \n "Post-transition!"
 ```
 
-Example of accidentally breaking the function by overwriting the internal call to `machine:transition()`.
+Example of accidentally breaking the function by overwriting the internal call to `machine:transition(to_state, ...)`.
 
 ```lua
--- Also allows the user to erroneously break the machine.state.transition() function ex.
 print(game_state_machine.current()) -- settings
 game_state_machine.game.transition = function(...) print "Transitioning!"
 game_state_machine.game.transition('FTL') -- prints "Transitioning!" but does not transition the state machine
 print(game_state_machine.current()) -- settings
-
-game_state_machine:transition('game', 'FTL') -- successfully transitions to game state
 ```
 
 ## API
 ### `luasm.make(t)` 
-- Params: `t` a table containing a list of directed **edges** named Ex. `states = {edges = {from = 'start', to = 'end'}}`
-- Returns: A finite state machine (table) built from the given table
+- Params: `t` a table containing a list of directed **edges**. Ex. `states = {edges = {from = 'start', to = 'end'}}`.
+- Returns: A finite state machine built from the given table.
 
-Creates a finite state machine from the given table. Fails with an error if the given table does not contains a key value set of edges as described above
+Creates a finite state machine from the given table. Fails with an error if the given table does not contain a key-value set of edges as described above.
 
 ### `machine:next(...)`
 - Params: `...` args that are passed on to the `onexit` and `onenter` callbacks, if they exist for the involved states.
@@ -165,9 +162,21 @@ Declare `onexit` and `onenter` callbacks for the given state. The callbacks' fun
 
 Returns the name of the current state or `nil` if uninitialized.
 
-### `machine.last()`
+### `machine.last(index)`
+- Params: `index` the index from the top of the history stack. Defaults to `0`.
 
-Returns the name of the last state or `nil` if uninitialized.
+Returns the name of the last `index`th state from the top of the state history stack, or `nil` if uninitialized.
+
+Ex. 
+```lua
+print(machine.current()) -- start
+machine:next() -- state_one
+machine:next() -- state_two
+
+print(machine.current()) -- state_two
+print(machine.last()) -- state_one ; Equivalent to machine.last(0)
+print(machine.last(1)) -- start
+```
 
 ### `machine.from()`
 

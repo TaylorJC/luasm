@@ -5,7 +5,7 @@ local M = {}
 M.__index = M
 
 local current 
-local last
+local last = {}
 local from
 local to
 
@@ -77,7 +77,9 @@ local function update_state(self, next_state, ...)
 		self[next_state].onenter(self, ...)
 	end
 
-	last = current -- Update last
+	table.insert(last, current) -- Update last
+
+	-- last = current
 
 	current = next_state -- Update current
 
@@ -163,8 +165,14 @@ local function get_current()
 	return current
 end
 
-local function get_last()
-	return last
+local function get_last(index)
+	local i = index or 0
+	
+	if last then
+		return last[#last - i]
+	else
+		return nil
+	end
 end
 
 local function get_to()
